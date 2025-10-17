@@ -29,6 +29,7 @@
   <script src="libs/page-flip.browser.min.js"></script>
 
   <script>
+  // ===== AUDIO robusto =====
   (function () {
     const bgm = document.getElementById('bgm');
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -93,6 +94,7 @@
   </script>
 
   <script>
+  // ===== FLIPBOOK dimensionado correcto + swipe =====
   const PAGES = ['page1.png','page2.png','page3.png','page4.png'];
   const FLIP_MS = 700;
 
@@ -108,11 +110,19 @@
         const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
         const ratio = probe.naturalHeight / probe.naturalWidth;
 
-        const targetCssWidth = Math.min(
-          Math.floor(probe.naturalWidth / dpr),
-          Math.floor(window.innerWidth * 0.98)
-        );
+        // Ajustar al viewport sin escalar por encima del tamaño "nativo/dpr"
+        const fitByWidth  = Math.floor(window.innerWidth  * 0.98);
+        const fitByHeight = Math.floor(window.innerHeight * 0.98 / ratio);
+        const maxFit = Math.min(fitByWidth, fitByHeight);
+        const nativeCss = Math.floor(probe.naturalWidth / dpr);
+        const targetCssWidth  = Math.max(320, Math.min(nativeCss, maxFit));
         const targetCssHeight = Math.floor(targetCssWidth * ratio);
+
+        // Centrar el contenedor y no estirarlo
+        bookEl.style.display = 'flex';
+        bookEl.style.alignItems = 'center';
+        bookEl.style.justifyContent = 'center';
+        bookEl.style.height = '100svh';
 
         const flip = new St.PageFlip(bookEl, {
           width:  targetCssWidth,
@@ -130,10 +140,67 @@
         });
 
         flip.loadFromImages(PAGES);
+
+        // Tap zones
+        const left = document.getElementById('tap-left');
+        const right= document.getElementById('tap-right');
+        if(left)  left.addEventListener('click', ()=>flip.flipPrev());
+        if(right) right.addEventListener('click',()=>flip.flipNext());
+
+        // Swipe soporte
+        (function swipeSupport(el){
+          const target=el||bookEl;
+          const THRESHOLD=Math.max(30, Math.round(window.innerWidth*0.06));
+          const ANGLE_LOCK=1.2;
+          let sx=0, sy=0, tracking=false;
+
+          target.addEventListener('pointerdown', e=>{
+            if(e.pointerType==='mouse' && e.buttons!==1) return;
+            tracking=true; sx=e.clientX; sy=e.clientY;
+          }, {passive:true});
+
+          target.addEventListener('pointerup', e=>{
+            if(!tracking) return; tracking=false;
+            const dx=e.clientX - sx, dy=e.clientY - sy;
+            if(Math.abs(dx)>THRESHOLD && Math.abs(dx)>Math.abs(dy)*ANGLE_LOCK){
+              dx<0 ? flip.flipNext() : flip.flipPrev();
+            }
+          }, {passive:true});
+
+          // Fallback iOS antiguo
+          let tsx=0, tsy=0, touching=false;
+          target.addEventListener('touchstart', e=>{
+            const t=e.touches[0]; touching=true; tsx=t.clientX; tsy=t.clientY;
+          }, {passive:true});
+          target.addEventListener('touchend', e=>{
+            if(!touching) return; touching=false;
+            const t=e.changedTouches[0];
+            const dx=t.clientX - tsx, dy=t.clientY - tsy;
+            if(Math.abs(dx)>THRESHOLD && Math.abs(dx)>Math.abs(dy)*ANGLE_LOCK){
+              dx<0 ? flip.flipNext() : flip.flipPrev();
+            }
+          }, {passive:true});
+        })(bookEl);
+
+        // Teclado en PC
+        window.addEventListener('keydown', e=>{
+          if(e.key==='ArrowLeft')  flip.flipPrev();
+          if(e.key==='ArrowRight') flip.flipNext();
+        });
+
+        // Reinit en resize/orientación
+        let reinitTimer;
+        const reinit = () => {
+          clearTimeout(reinitTimer);
+          reinitTimer = setTimeout(() => {
+            try { flip.destroy(); } catch(_){}
+            probe.onload(); // recalcular
+          }, 120);
+        };
+        window.addEventListener('resize', reinit);
+        window.addEventListener('orientationchange', reinit);
       };
-      probe.onerror = () => {
-        throw new Error('No se pudo leer la primera imagen');
-      };
+      probe.onerror = () => { throw new Error('No se pudo leer la primera imagen'); };
       probe.src = PAGES[0];
 
     }catch(e){

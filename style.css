@@ -2,10 +2,27 @@
 *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 html,body{ margin:0; height:100%; background:var(--bg); overflow:hidden; }
 body{ font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; overscroll-behavior:contain; touch-action:none; }
-#book{ position:fixed; inset:0; width:100vw; height:auto; background:transparent; touch-action:pan-y; }
+
+/* Contenedor centrado, sin forzar ancho/alto al canvas */
+#book{ position:fixed; inset:0; background:transparent; }
+
 .tap-zone{ position:fixed; top:0; bottom:0; width:50vw; z-index:20; }
 #tap-left{ left:0; } #tap-right{ right:0; }
-#fallback{ display:none; position:fixed; inset:0; width:100vw; height:auto; overflow:hidden; background:var(--bg); }
+
+#fallback{ display:none; position:fixed; inset:0; width:100vw; height:100svh; overflow:hidden; background:var(--bg); }
 #fallback .strip{ display:flex; align-items:center; height:100%; }
-#book img,#fallback img{ width:100%; height:auto; object-fit:contain; display:block; margin:0 auto; image-rendering:auto; -ms-interpolation-mode:bicubic; transform:translateZ(0); backface-visibility:hidden; }
+
+/* Imágenes nítidas sin pixelado y sin forzar alto */
+#book img,#fallback img{
+  width:100%;
+  height:auto;
+  object-fit:contain;
+  display:block;
+  margin:0 auto;
+  image-rendering:auto;
+  -ms-interpolation-mode:bicubic;
+  transform:translateZ(0);
+  backface-visibility:hidden;
+}
+
 #msg{ position:fixed; top:10px; left:50%; transform:translateX(-50%); background:#fff; border:1px solid #eee; border-radius:10px; padding:8px 12px; font-size:14px; z-index:30; display:none; }
