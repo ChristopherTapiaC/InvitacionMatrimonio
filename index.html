@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#f6f3ee" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Invitación | Tihare & Christopher</title>
+  <style>
+    :root {
+      --bg: #f6f3ee;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: var(--bg);
+      overflow: hidden;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      overscroll-behavior: contain;
+      touch-action: none;
+    }
+
+    /* === Flipbook principal === */
+    #book {
+      width: 100vw;
+      height: 100dvh;
+      background: transparent;
+      touch-action: pan-y;
+    }
+
+    /* === Zonas táctiles laterales === */
+    .tap-zone {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      width: 50vw;
+      z-index: 20;
+    }
+
+    #tap-left { left: 0; }
+    #tap-right { right: 0; }
+
+    /* === Fallback (modo sin efectos) === */
+    #fallback {
+      display: none;
+      width: 100vw;
+      height: 100dvh;
+      overflow: auto;
+    }
+
+    #fallback .strip {
+      display: flex;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* === Imágenes principales === */
+    #book img,
+    #fallback img {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 1240 / 1748;
+      display: block;
+      margin: 0 auto;
+      object-fit: contain;
+
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      image-rendering: pixelated;
+      -ms-interpolation-mode: nearest-neighbor;
+      transform: translateZ(0);
+      backface-visibility: hidden;
+    }
+
+    /* === Fondo uniforme === */
+    body {
+      background-color: #f6f3ee;
+    }
+
+    /* === Mensaje emergente (modo simple) === */
+    #msg {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #fff;
+      border: 1px solid #eee;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 14px;
+      z-index: 30;
+      display: none;
+    }
+  </style>
+
+</head>
+<body>
+
+  <div id="msg"></div>
+
+  <!-- Música autoplay con persistencia y reinicio desde 0 -->
+  <audio id="bgm" src="musica.mp3" loop muted playsinline preload="auto"></audio>
+  <script>
+  (function () {
+    const bgm = document.getElementById('bgm');
+    function startFromZero() {
+      try {
+        if (!isNaN(bgm.duration) && bgm.duration > 0) {
+          if (typeof bgm.fastSeek === 'function') bgm.fastSeek(0);
+          bgm.currentTime = 0;
+        }
+      } catch (_) {}
+    }
+
+    window.addEventListener('load', () => {
+      bgm.pause(); startFromZero();
+      bgm.muted = true;
+      bgm.play().catch(()=>{});
+    });
+
+    bgm.addEventListener('loadedmetadata', startFromZero, { once:true });
+    window.addEventListener('pageshow', e=>{
+      if (e.persisted){ bgm.pause(); startFromZero(); bgm.play().catch(()=>{}); }
+    });
+
+    const enableSound = () => {
+      bgm.muted=false; bgm.volume=1;
+      startFromZero(); bgm.play().catch(()=>{});
+      sessionStorage.setItem('bgmEnabled','true');
+      ['click','touchstart','pointerdown','keydown','wheel']
+        .forEach(ev=>window.removeEventListener(ev,enableSound));
+    };
+
+    if (!sessionStorage.getItem('bgmEnabled')){
+      ['click','touchstart','pointerdown','keydown','wheel']
+        .forEach(ev=>window.addEventListener(ev,enableSound,{once:true,passive:true}));
+    } else {
+      bgm.muted=false; bgm.volume=1;
+      startFromZero(); bgm.play().catch(()=>{});
+    }
+
+    bgm.addEventListener('ended', ()=>{ startFromZero(); bgm.play().catch(()=>{}); });
+    document.addEventListener('visibilitychange', ()=>{
+      if (!document.hidden && bgm.paused){ startFromZero(); bgm.play().catch(()=>{}); }
+    });
+    window.addEventListener('pagehide', ()=>{ bgm.pause(); startFromZero(); });
+  })();
+  </script>
+
+  <!-- Flipbook -->
+  <div id="book" aria-label="Libro"></div>
+
+  <!-- Zonas táctiles -->
+  <div id="tap-left"  class="tap-zone"></div>
+  <div id="tap-right" class="tap-zone"></div>
+
+  <!-- Fallback -->
+  <div id="fallback">
+    <div class="strip">
+      <img src="page1.png" alt="Página 1">
+      <img src="page2.png" alt="Página 2">
+      <img src="page3.png" alt="Página 3">
+      <img src="page4.png" alt="Página 4">
+    </div>
+  </div>
+
+  <!-- Librería PageFlip -->
+  <script src="libs/page-flip.browser.min.js"></script>
+  <script>
+  const PAGES = ['page1.png','page2.png','page3.png','page4.png'];
+  const FLIP_MS = 700;
+
+  (function(){
+    const msg=(t)=>{const el=document.getElementById('msg');el.textContent=t;el.style.display='block';};
+    try{
+      if(!window.St || !St.PageFlip) throw new Error('PageFlip no disponible');
+      const bookEl=document.getElementById('book');
+      const flip=new St.PageFlip(bookEl,{
+        width:900,height:1280,size:"stretch",autoSize:true,
+        minWidth:320,minHeight:320,maxWidth:3000,maxHeight:3000,
+        usePortrait:true,showCover:false,mobileScrollSupport:false,
+        flippingTime:FLIP_MS,drawShadow:true
+      });
+      flip.loadFromImages(PAGES);
+
+      // Click zones
+      document.getElementById('tap-left').addEventListener('click',()=>flip.flipPrev());
+      document.getElementById('tap-right').addEventListener('click',()=>flip.flipNext());
+
+      // Swipe soporte móvil
+      (function swipeSupport(el){
+        const target=el||bookEl;
+        const THRESHOLD=Math.max(30,Math.round(window.innerWidth*0.06));
+        const ANGLE_LOCK=1.2;
+        let sx=0,sy=0,tracking=false;
+
+        target.addEventListener('pointerdown',e=>{
+          if(e.pointerType==='mouse' && e.buttons!==1) return;
+          tracking=true; sx=e.clientX; sy=e.clientY;
+        },{passive:true});
+
+        target.addEventListener('pointerup',e=>{
+          if(!tracking) return; tracking=false;
+          const dx=e.clientX-sx, dy=e.clientY-sy;
+          if(Math.abs(dx)>THRESHOLD && Math.abs(dx)>Math.abs(dy)*ANGLE_LOCK){
+            dx<0?flip.flipNext():flip.flipPrev();
+          }
+        },{passive:true});
+
+        // Fallback iOS antiguo
+        let tsx=0,tsy=0,touching=false;
+        target.addEventListener('touchstart',e=>{
+          const t=e.touches[0]; touching=true; tsx=t.clientX; tsy=t.clientY;
+        },{passive:true});
+        target.addEventListener('touchend',e=>{
+          if(!touching) return; touching=false;
+          const t=e.changedTouches[0];
+          const dx=t.clientX-tsx, dy=t.clientY-tsy;
+          if(Math.abs(dx)>THRESHOLD && Math.abs(dx)>Math.abs(dy)*ANGLE_LOCK){
+            dx<0?flip.flipNext():flip.flipPrev();
+          }
+        },{passive:true});
+      })(bookEl);
+
+      // Teclado
+      window.addEventListener('keydown',e=>{
+        if(e.key==='ArrowLeft') flip.flipPrev();
+        if(e.key==='ArrowRight') flip.flipNext();
+      });
+
+      const refresh=()=>flip.updateOrientation(true);
+      window.addEventListener('resize',refresh);
+      window.addEventListener('orientationchange',refresh);
+
+    }catch(e){
+      console.warn(e);
+      msg('Modo simple');
+      document.getElementById('book').style.display='none';
+      const fb=document.getElementById('fallback');fb.style.display='block';
+      const strip=fb.querySelector('.strip');
+      const go=(d)=>strip.scrollBy({left:d*window.innerWidth,behavior:'smooth'});
+      document.getElementById('tap-left').onclick=()=>go(-1);
+      document.getElementById('tap-right').onclick=()=>go(1);
+    }
+  })();
+  </script>
+</body>
+</html>
