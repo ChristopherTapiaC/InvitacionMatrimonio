@@ -6,17 +6,23 @@
   <meta name="theme-color" content="#f6f3ee" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Invitación | Tihare & Christopher</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style_v3.css" />
 </head>
 <body>
 
   <div id="msg"></div>
 
+  <!-- Música -->
   <audio id="bgm" src="musica.mp3" loop muted playsinline preload="auto"></audio>
+
+  <!-- Flipbook -->
   <div id="book" aria-label="Libro"></div>
+
+  <!-- Zonas táctiles para tap -->
   <div id="tap-left"  class="tap-zone" aria-hidden="true"></div>
   <div id="tap-right" class="tap-zone" aria-hidden="true"></div>
 
+  <!-- Fallback simple (sin efectos) -->
   <div id="fallback" aria-hidden="true">
     <div class="strip">
       <img src="page1.png" alt="Página 1">
@@ -29,7 +35,7 @@
   <script src="libs/page-flip.browser.min.js"></script>
 
   <script>
-  // ===== AUDIO robusto =====
+  /************ AUDIO robusto (autoplay + desbloqueo móvil) ************/
   (function () {
     const bgm = document.getElementById('bgm');
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -44,12 +50,14 @@
       }catch(_){}
     }
 
+    // Intento de autoplay silenciado
     window.addEventListener('load', () => {
       bgm.pause(); startFromZero();
       bgm.muted = true;
       bgm.play().catch(()=>{});
     });
 
+    // Desbloqueo en CAPTURA (canvas consume eventos)
     const targets = [
       window, document, document.documentElement, document.body,
       document.getElementById('book'),
@@ -94,9 +102,8 @@
   </script>
 
   <script>
-  // ===== FLIPBOOK dimensionado correcto + swipe =====
+  /***************** FLIPBOOK + swipe con animación clara en ambos sentidos *****************/
   const PAGES = ['page1.png','page2.png','page3.png','page4.png'];
-  const FLIP_MS = 700;
 
   (function(){
     const msg=(t)=>{const el=document.getElementById('msg'); if(el){el.textContent=t; el.style.display='block';}};
@@ -106,23 +113,23 @@
 
       const bookEl = document.getElementById('book');
       const probe = new Image();
-      probe.onload = () => {
-        const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+
+      function initFlip(){
+        const dpr   = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
         const ratio = probe.naturalHeight / probe.naturalWidth;
 
-        // Ajustar al viewport sin escalar por encima del tamaño "nativo/dpr"
+        // Tamaño máximo que cabe en viewport sin escalar por encima de nativo/dpr
         const fitByWidth  = Math.floor(window.innerWidth  * 0.98);
         const fitByHeight = Math.floor(window.innerHeight * 0.98 / ratio);
-        const maxFit = Math.min(fitByWidth, fitByHeight);
-        const nativeCss = Math.floor(probe.naturalWidth / dpr);
+        const maxFit      = Math.min(fitByWidth, fitByHeight);
+        const nativeCss   = Math.floor(probe.naturalWidth / dpr);
         const targetCssWidth  = Math.max(320, Math.min(nativeCss, maxFit));
         const targetCssHeight = Math.floor(targetCssWidth * ratio);
 
-        // Centrar el contenedor y no estirarlo
+        // Centrado perfecto
         bookEl.style.display = 'flex';
         bookEl.style.alignItems = 'center';
         bookEl.style.justifyContent = 'center';
-        bookEl.style.height = '100svh';
 
         const flip = new St.PageFlip(bookEl, {
           width:  targetCssWidth,
@@ -135,23 +142,27 @@
           usePortrait: true,
           showCover: false,
           mobileScrollSupport: false,
-          flippingTime: FLIP_MS,
+
+          // Animación marcada en ambos sentidos
+          flippingTime: 900,
           drawShadow: true,
+          maxShadowOpacity: 1,
+          showPageCorners: true
         });
 
         flip.loadFromImages(PAGES);
 
-        // Tap zones
-        const left = document.getElementById('tap-left');
-        const right= document.getElementById('tap-right');
-        if(left)  left.addEventListener('click', ()=>flip.flipPrev());
-        if(right) right.addEventListener('click',()=>flip.flipNext());
+        // Taps en bordes
+        const L = document.getElementById('tap-left');
+        const R = document.getElementById('tap-right');
+        if (L) L.addEventListener('click', ()=>flip.flipPrev());
+        if (R) R.addEventListener('click', ()=>flip.flipNext());
 
-        // Swipe soporte
+        // Swipe horizontal (pointer + touch)
         (function swipeSupport(el){
-          const target=el||bookEl;
-          const THRESHOLD=Math.max(30, Math.round(window.innerWidth*0.06));
-          const ANGLE_LOCK=1.2;
+          const target = el || bookEl;
+          const THRESHOLD = Math.max(30, Math.round(window.innerWidth*0.06));
+          const ANGLE_LOCK = 1.2;
           let sx=0, sy=0, tracking=false;
 
           target.addEventListener('pointerdown', e=>{
@@ -167,7 +178,7 @@
             }
           }, {passive:true});
 
-          // Fallback iOS antiguo
+          // iOS antiguos
           let tsx=0, tsy=0, touching=false;
           target.addEventListener('touchstart', e=>{
             const t=e.touches[0]; touching=true; tsx=t.clientX; tsy=t.clientY;
@@ -188,18 +199,20 @@
           if(e.key==='ArrowRight') flip.flipNext();
         });
 
-        // Reinit en resize/orientación
-        let reinitTimer;
+        // Reinit al cambiar tamaño/orientación
+        let timer;
         const reinit = () => {
-          clearTimeout(reinitTimer);
-          reinitTimer = setTimeout(() => {
+          clearTimeout(timer);
+          timer = setTimeout(() => {
             try { flip.destroy(); } catch(_){}
-            probe.onload(); // recalcular
+            initFlip();
           }, 120);
         };
         window.addEventListener('resize', reinit);
         window.addEventListener('orientationchange', reinit);
-      };
+      }
+
+      probe.onload = initFlip;
       probe.onerror = () => { throw new Error('No se pudo leer la primera imagen'); };
       probe.src = PAGES[0];
 
@@ -211,5 +224,6 @@
     }
   })();
   </script>
+
 </body>
 </html>
