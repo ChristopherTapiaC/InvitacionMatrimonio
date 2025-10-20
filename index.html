@@ -1,251 +1,119 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Invitación | Tihare & Christopher</title>
-
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invitación de Boda</title>
   <style>
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body {
-      width: 100%;
-      height: 100%;
+    * {
+      box-sizing: border-box;
       margin: 0;
       padding: 0;
+    }
+
+    body {
+      background: url('Fondo.png') no-repeat center center fixed;
+      background-size: cover;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #book-viewport {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       overflow: hidden;
     }
 
-    /* === Fondo general === */
-    html {
-      background: url("Fondo.png") center center / cover no-repeat;
-      background-color: #bcd6e6;
-    }
-    body { background: transparent !important; }
-
-    /* === Flipbook === */
-    #book.stf__parent {
-      position: fixed;
-      inset: 0;
-      width: 100vw;
-      height: 100dvh;
-      background: transparent !important;
-      z-index: 10;
-    }
-    #book, #book * {
-      background: transparent !important;
-      border: none !important;
-      box-shadow: none !important;
-    }
-    #book .stf__wrapper {
-      height: 100% !important;
-      padding: 0 !important;
-      margin: 0 !important;
-    }
-    #book canvas {
-      position: absolute !important;
-      inset: 0;
-      width: 100% !important;
-      height: 100% !important;
-      background: transparent !important;
+    #book {
+      width: 1080px;
+      height: 1528px;
+      transform-origin: center center;
+      will-change: transform;
     }
 
-    /* === Zonas táctiles === */
     .tap-zone {
       position: fixed;
       top: 0;
       bottom: 0;
       width: 50vw;
-      z-index: 30;
-    }
-    #tap-left { left: 0; }
-    #tap-right { right: 0; }
-
-    /* === Overlays decorativos (solo móvil) === */
-    #fx-top, #fx-bottom {
-      position: fixed;
-      left: 0; right: 0;
-      pointer-events: none;
-      z-index: 25;
-      background-image: url("Fondo.png");
-      background-repeat: no-repeat;
-      background-size: cover;
-    }
-    #fx-top {
-      top: 0;
-      height: min(18svh, 180px);
-      background-position: center top;
-      -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 55%, rgba(0,0,0,0) 100%);
-              mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 55%, rgba(0,0,0,0) 100%);
-    }
-    #fx-bottom {
-      bottom: 0;
-      height: min(18svh, 180px);
-      background-position: center bottom;
-      -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,1) 55%, rgba(0,0,0,0) 100%);
-              mask-image: linear-gradient(to top, rgba(0,0,0,1) 55%, rgba(0,0,0,0) 100%);
+      z-index: 20;
     }
 
-    /* === Fondo lateral en pantallas grandes === */
-    @media (min-width: 768px) {
-      html {
-        background: url("Fondo.png") center center / cover no-repeat fixed;
-      }
-      #fx-top, #fx-bottom { display: none; }
-      #book.stf__parent {
-        left: 50%;
-        transform: translateX(-50%);
-        max-width: 1100px;
-      }
+    #tap-left {
+      left: 0;
+    }
+
+    #tap-right {
+      right: 0;
     }
   </style>
 </head>
-
 <body>
-  <!-- Overlays solo visibles en móvil -->
-  <div id="fx-top"></div>
-  <div id="fx-bottom"></div>
+  <div id="msg"></div>
+  <audio id="bgm" src="musica.mp3" loop muted playsinline preload="auto"></audio>
 
-  <!-- Música -->
-  <audio id="bgm" src="musica.mp3" preload="metadata" loop playsinline muted></audio>
+  <div id="book-viewport">
+    <div id="book" aria-label="Libro" class="stf__parent"></div>
+  </div>
 
-  <!-- Flipbook -->
-  <div id="book" aria-label="Libro"></div>
-
-  <!-- Zonas táctiles -->
   <div id="tap-left" class="tap-zone"></div>
   <div id="tap-right" class="tap-zone"></div>
 
-  <!-- Librería -->
   <script src="libs/page-flip.browser.min.js"></script>
-
-  <!-- 🎵 Control de música: desbloqueo en primera interacción + reanudar al volver sin reiniciar -->
   <script>
-    (function () {
-      const audio = document.getElementById('bgm');
-      const POS_KEY = 'aud_pos_tmp';
-      const PLAY_KEY = 'aud_was_playing_tmp';
-      let unlocked = false;
+    const bookEl = document.getElementById('book');
+    const flip = new St.PageFlip(bookEl, {
+      width: 1080,
+      height: 1528,
+      size: 'fixed',
+      autoSize: false,
+      usePortrait: true,
+      showCover: false,
+      mobileScrollSupport: false,
+      flippingTime: 700,
+      drawShadow: true
+    });
 
-      // Intento pasivo de preparar el elemento (sin reproducir)
-      window.addEventListener('load', () => {
-        audio.pause();
-        audio.muted = true;
-        try { audio.currentTime = 0; } catch(_) {}
-      });
+    const PAGES = ['page1.png', 'page2.png', 'page3.png', 'page4.png'];
+    flip.loadFromImages(PAGES);
 
-      // Desbloqueo robusto en PRIMERA interacción real
-      function unlockAndPlay() {
-        if (unlocked) return;
-        unlocked = true;
-        audio.muted = false;
-        try { audio.currentTime = 0; } catch(_) {}
-        audio.play().catch(()=>{});
-        removeUnlockListeners();
-      }
+    document.getElementById('tap-left').addEventListener('click', () => flip.flipPrev());
+    document.getElementById('tap-right').addEventListener('click', () => flip.flipNext());
 
-      function addUnlockListeners(){
-        ['click','touchstart','pointerdown','keydown','wheel'].forEach(evt => {
-          document.addEventListener(evt, unlockAndPlay, { passive: true, once: false });
-          window.addEventListener(evt,   unlockAndPlay, { passive: true, once: false });
-          const book = document.getElementById('book');
-          if (book) book.addEventListener(evt, unlockAndPlay, { passive: true, once: false });
-        });
-      }
-      function removeUnlockListeners(){
-        ['click','touchstart','pointerdown','keydown','wheel'].forEach(evt => {
-          document.removeEventListener(evt, unlockAndPlay, { passive: true });
-          window.removeEventListener(evt,   unlockAndPlay, { passive: true });
-          const book = document.getElementById('book');
-          if (book) book.removeEventListener(evt, unlockAndPlay, { passive: true });
-        });
-      }
-      addUnlockListeners();
-
-      // Reforzamos 300ms tras un click (Safari/iOS a veces necesita el segundo intento)
-      document.addEventListener('click', () => {
-        setTimeout(() => {
-          if (!unlocked || !audio.paused) return;
-          audio.muted = false;
-          try { audio.currentTime = 0; } catch(_) {}
-          audio.play().catch(()=>{});
-        }, 300);
-      });
-
-      // Bucle normal (no forzamos a 0 aquí; el atributo loop ya lo hace sin “saltos”)
-      // Si en algún dispositivo notas un micro-salto al terminar, descomenta esto:
-      // audio.addEventListener('ended', () => { try { audio.currentTime = 0; } catch(_){ } audio.play().catch(()=>{}); });
-
-      // Guardar estado/posición AL OCULTARSE (cambio de app/ventana)
-      function saveState(){
-        try {
-          sessionStorage.setItem(POS_KEY, String(audio.currentTime || 0));
-          sessionStorage.setItem(PLAY_KEY, String(!audio.paused));
-        } catch(_) {}
-      }
-      // Restaurar estado/posición AL MOSTRARSE de nuevo (sin reiniciar a 0)
-      function restoreState(){
-        try {
-          const pos = parseFloat(sessionStorage.getItem(POS_KEY) || '0');
-          const wasPlaying = sessionStorage.getItem(PLAY_KEY) === 'true';
-          if (!isNaN(pos)) { try { audio.currentTime = pos; } catch(_) {} }
-          if (unlocked && wasPlaying) {
-            audio.muted = false;
-            audio.play().catch(()=>{});
-          }
-        } catch(_) {}
-      }
-
-      document.addEventListener('visibilitychange', () => {
-        if (document.hidden) saveState(); else restoreState();
-      });
-      window.addEventListener('pagehide', saveState);
-      window.addEventListener('pageshow', (e) => {
-        // Si viene de BFCache (persisted), restauramos suave
-        if (e.persisted) restoreState();
-      });
-    })();
-  </script>
-
-  <script>
-    // ===========================
-    // 📖 Inicialización del libro
-    // ===========================
-    const PAGES = ['page1.png','page2.png','page3.png','page4.png'];
-
-    try {
-      const bookEl = document.getElementById('book');
-      const flip = new St.PageFlip(bookEl, {
-        width: 900,
-        height: 1280,
-        size: 'stretch',
-        autoSize: true,
-        minWidth: 320,
-        minHeight: 320,
-        maxWidth: 3000,
-        maxHeight: 3000,
-        usePortrait: true,
-        showCover: false,
-        mobileScrollSupport: false,
-        flippingTime: 700,
-        drawShadow: true
-      });
-      flip.loadFromImages(PAGES);
-
-      // Controles táctiles / clic
-      document.getElementById('tap-left').addEventListener('click', ()=>flip.flipPrev());
-      document.getElementById('tap-right').addEventListener('click', ()=>flip.flipNext());
-
-      // Swipe horizontal (móvil)
-      let touchStartX = 0;
-      document.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX, {passive:true});
-      document.addEventListener('touchend', e => {
-        const diff = e.changedTouches[0].clientX - touchStartX;
-        if (Math.abs(diff) > 50) diff > 0 ? flip.flipPrev() : flip.flipNext();
-      }, {passive:true});
-
-    } catch (e) {
-      console.warn('Error inicializando PageFlip:', e);
+    function fitBookToScreen() {
+      const W = 1080;
+      const H = 1528;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const scale = Math.min(1, vw / W, vh / H);
+      bookEl.style.transform = `scale(${scale})`;
     }
+    window.addEventListener('resize', fitBookToScreen);
+    window.addEventListener('orientationchange', fitBookToScreen);
+    fitBookToScreen();
+
+    // ==== Música con persistencia y arranque controlado ====
+    const bgm = document.getElementById('bgm');
+    document.addEventListener('click', () => {
+      bgm.muted = false;
+      if (bgm.paused) {
+        bgm.play().catch(err => console.log('Autoplay bloqueado:', err));
+      }
+    });
+
+    window.addEventListener('blur', () => {
+      bgm.pause();
+    });
+
+    window.addEventListener('focus', () => {
+      if (!bgm.muted && bgm.paused) bgm.play();
+    });
   </script>
 </body>
 </html>
