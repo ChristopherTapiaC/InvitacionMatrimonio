@@ -95,18 +95,13 @@
       html {
         background: url("Fondo.png") center center / cover no-repeat fixed;
       }
-
-      /* Ocultamos overlays porque ya usamos fondo completo */
       #fx-top, #fx-bottom { display: none; }
-
-      /* Ajuste visual para centrado */
       #book.stf__parent {
         left: 50%;
         transform: translateX(-50%);
         max-width: 1100px;
       }
     }
-
   </style>
 </head>
 
@@ -114,6 +109,9 @@
   <!-- Overlays solo visibles en móvil -->
   <div id="fx-top"></div>
   <div id="fx-bottom"></div>
+
+  <!-- Música: autoplay (silencio inicial), bucle y persistencia -->
+  <audio id="bgm" src="musica.mp3" loop muted playsinline preload="auto"></audio>
 
   <!-- Flipbook -->
   <div id="book" aria-label="Libro"></div>
@@ -134,6 +132,66 @@
 
   <!-- Librería -->
   <script src="libs/page-flip.browser.min.js"></script>
+
+  <!-- Control de música (autoplay con persistencia y reanudación) -->
+  <script>
+    (function () {
+      const audio = document.getElementById('bgm');
+      const POS_KEY = 'bgm_pos_v1';
+      const UNLOCK_KEY = 'bgm_unlocked_v1';
+
+      // Intenta precargar y comenzar en silencio (permitido por la mayoría de navegadores)
+      const saved = parseFloat(localStorage.getItem(POS_KEY) || '0');
+      if (!isNaN(saved)) {
+        try { audio.currentTime = saved; } catch {}
+      }
+      // Inicia en silencio sin interacción
+      audio.play().catch(()=>{ /* no pasa nada: algunos navegadores lo bloquearán hasta gesto */ });
+
+      // Al primer gesto del usuario, activamos sonido y nos aseguramos de reproducir
+      const unlock = () => {
+        audio.muted = false;
+        audio.play().catch(()=>{});   // en iOS/Android ya habrá gesto, así que debería reproducir
+        localStorage.setItem(UNLOCK_KEY, '1');
+        window.removeEventListener('pointerdown', unlock);
+        window.removeEventListener('touchstart', unlock);
+        window.removeEventListener('keydown', unlock);
+      };
+      window.addEventListener('pointerdown', unlock, { once:true });
+      window.addEventListener('touchstart', unlock, { once:true, passive:true });
+      window.addEventListener('keydown', unlock, { once:true });
+
+      // Guarda posición cada ~2s
+      let lastSave = 0;
+      audio.addEventListener('timeupdate', () => {
+        const now = Date.now();
+        if (now - lastSave > 2000) {
+          try { localStorage.setItem(POS_KEY, String(audio.currentTime)); } catch {}
+          lastSave = now;
+        }
+      });
+
+      // Reanuda al volver a la pestaña/app
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          const p = parseFloat(localStorage.getItem(POS_KEY) || '0');
+          if (!isNaN(p)) { try { audio.currentTime = p; } catch {} }
+          // Si ya hubo gesto en esta sesión, aseguramos reproducción
+          if (localStorage.getItem(UNLOCK_KEY) === '1') {
+            audio.muted = false;
+            audio.play().catch(()=>{});
+          }
+        }
+      });
+
+      // iOS webview/Android: al cerrar, guarda
+      window.addEventListener('pagehide', () => {
+        try { localStorage.setItem(POS_KEY, String(audio.currentTime)); } catch {}
+      });
+    })();
+  </script>
+
+  <!-- Flipbook (tal cual tuviste) -->
   <script>
     const PAGES = ['page1.png','page2.png','page3.png','page4.png'];
     const FLIP_MS = 700;
