@@ -3,27 +3,127 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <meta name="theme-color" content="#f6f3ee" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Invitación | Tihare & Christopher</title>
-  <link rel="stylesheet" href="style_v3.css" />
+
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    /* === Fondo general === */
+    html {
+      background: url("Fondo.png") center center / cover no-repeat;
+      background-color: #bcd6e6;
+    }
+    body { background: transparent !important; }
+
+    /* === Flipbook === */
+    #book.stf__parent {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100dvh;
+      background: transparent !important;
+      z-index: 10;
+    }
+    #book, #book * {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
+    #book .stf__wrapper {
+      height: 100% !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    #book canvas {
+      position: absolute !important;
+      inset: 0;
+      width: 100% !important;
+      height: 100% !important;
+      background: transparent !important;
+    }
+
+    /* === Zonas táctiles === */
+    .tap-zone {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      width: 50vw;
+      z-index: 30;
+    }
+    #tap-left { left: 0; }
+    #tap-right { right: 0; }
+
+    /* === Overlays decorativos (solo móvil) === */
+    #fx-top, #fx-bottom {
+      position: fixed;
+      left: 0; right: 0;
+      pointer-events: none;
+      z-index: 25;
+      background-image: url("Fondo.png");
+      background-repeat: no-repeat;
+      background-size: cover;
+    }
+    #fx-top {
+      top: 0;
+      height: min(18svh, 180px);
+      background-position: center top;
+      -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 55%, rgba(0,0,0,0) 100%);
+              mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 55%, rgba(0,0,0,0) 100%);
+    }
+    #fx-bottom {
+      bottom: 0;
+      height: min(18svh, 180px);
+      background-position: center bottom;
+      -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,1) 55%, rgba(0,0,0,0) 100%);
+              mask-image: linear-gradient(to top, rgba(0,0,0,1) 55%, rgba(0,0,0,0) 100%);
+    }
+
+    /* === Fallback simple === */
+    #fallback { display: none; width: 100vw; height: 100dvh; overflow: auto; z-index: 10; }
+    #fallback .strip { display: flex; width: 100%; height: 100%; }
+    #fallback img { width: 100%; height: auto; display: block; }
+
+    /* === Fondo lateral en pantallas grandes === */
+    @media (min-width: 768px) {
+      html {
+        background: url("Fondo.png") center center / cover no-repeat fixed;
+      }
+
+      /* Ocultamos overlays porque ya usamos fondo completo */
+      #fx-top, #fx-bottom { display: none; }
+
+      /* Ajuste visual para centrado */
+      #book.stf__parent {
+        left: 50%;
+        transform: translateX(-50%);
+        max-width: 1100px;
+      }
+    }
+
+  </style>
 </head>
+
 <body>
-
-  <div id="msg"></div>
-
-  <!-- Música -->
-  <audio id="bgm" src="musica.mp3" loop muted playsinline preload="auto"></audio>
+  <!-- Overlays solo visibles en móvil -->
+  <div id="fx-top"></div>
+  <div id="fx-bottom"></div>
 
   <!-- Flipbook -->
   <div id="book" aria-label="Libro"></div>
 
-  <!-- Zonas táctiles para tap -->
-  <div id="tap-left"  class="tap-zone" aria-hidden="true"></div>
-  <div id="tap-right" class="tap-zone" aria-hidden="true"></div>
+  <!-- Zonas táctiles -->
+  <div id="tap-left" class="tap-zone"></div>
+  <div id="tap-right" class="tap-zone"></div>
 
-  <!-- Fallback simple (sin efectos) -->
-  <div id="fallback" aria-hidden="true">
+  <!-- Fallback -->
+  <div id="fallback">
     <div class="strip">
       <img src="page1.png" alt="Página 1">
       <img src="page2.png" alt="Página 2">
@@ -32,198 +132,29 @@
     </div>
   </div>
 
+  <!-- Librería -->
   <script src="libs/page-flip.browser.min.js"></script>
-
   <script>
-  /************ AUDIO robusto (autoplay + desbloqueo móvil) ************/
-  (function () {
-    const bgm = document.getElementById('bgm');
-    const AC = window.AudioContext || window.webkitAudioContext;
-    let ac = null;
+    const PAGES = ['page1.png','page2.png','page3.png','page4.png'];
+    const FLIP_MS = 700;
 
-    function startFromZero(){
-      try{
-        if(!isNaN(bgm.duration) && bgm.duration>0){
-          if(typeof bgm.fastSeek==='function') bgm.fastSeek(0);
-          bgm.currentTime = 0;
-        }
-      }catch(_){}
-    }
-
-    // Intento de autoplay silenciado
-    window.addEventListener('load', () => {
-      bgm.pause(); startFromZero();
-      bgm.muted = true;
-      bgm.play().catch(()=>{});
-    });
-
-    // Desbloqueo en CAPTURA (canvas consume eventos)
-    const targets = [
-      window, document, document.documentElement, document.body,
-      document.getElementById('book'),
-      document.getElementById('tap-left'),
-      document.getElementById('tap-right')
-    ].filter(Boolean);
-    const events = ['pointerdown','pointerup','touchstart','touchend','click','keydown','wheel'];
-
-    async function unlockAudio(){
-      try{
-        if (AC && (!ac || ac.state !== 'running')) {
-          ac = ac || new AC();
-          if (ac.state !== 'running') await ac.resume();
-        }
-        bgm.muted = false; bgm.volume = 1;
-        startFromZero();
-        await bgm.play();
-        sessionStorage.setItem('bgmEnabled','true');
-      }catch(_){}
-      finally{
-        events.forEach(ev => targets.forEach(t => t.removeEventListener(ev, unlockAudio, {capture:true})));
-      }
-    }
-
-    if (!sessionStorage.getItem('bgmEnabled')){
-      events.forEach(ev => targets.forEach(t =>
-        t.addEventListener(ev, unlockAudio, { once:true, passive:true, capture:true })
-      ));
-    } else {
-      bgm.muted=false; bgm.volume=1;
-      startFromZero(); bgm.play().catch(()=>{});
-    }
-
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && bgm.paused) { startFromZero(); bgm.play().catch(()=>{}); }
-    });
-    window.addEventListener('pageshow', e => {
-      if (e.persisted){ bgm.pause(); startFromZero(); bgm.play().catch(()=>{}); }
-    });
-    bgm.addEventListener('ended', () => { startFromZero(); bgm.play().catch(()=>{}); });
-  })();
-  </script>
-
-  <script>
-  /***************** FLIPBOOK + swipe con animación clara en ambos sentidos *****************/
-  const PAGES = ['page1.png','page2.png','page3.png','page4.png'];
-
-  (function(){
-    const msg=(t)=>{const el=document.getElementById('msg'); if(el){el.textContent=t; el.style.display='block';}};
-
-    try{
-      if(!window.St || !St.PageFlip) throw new Error('PageFlip no disponible');
-
+    try {
       const bookEl = document.getElementById('book');
-      const probe = new Image();
+      const flip = new St.PageFlip(bookEl, {
+        width: 900, height: 1280, size: 'stretch', autoSize: true,
+        minWidth: 320, minHeight: 320, maxWidth: 3000, maxHeight: 3000,
+        usePortrait: true, showCover: false, mobileScrollSupport: false,
+        flippingTime: FLIP_MS, drawShadow: true
+      });
+      flip.loadFromImages(PAGES);
 
-      function initFlip(){
-        const dpr   = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-        const ratio = probe.naturalHeight / probe.naturalWidth;
-
-        // Tamaño máximo que cabe en viewport sin escalar por encima de nativo/dpr
-        const fitByWidth  = Math.floor(window.innerWidth  * 0.98);
-        const fitByHeight = Math.floor(window.innerHeight * 0.98 / ratio);
-        const maxFit      = Math.min(fitByWidth, fitByHeight);
-        const nativeCss   = Math.floor(probe.naturalWidth / dpr);
-        const targetCssWidth  = Math.max(320, Math.min(nativeCss, maxFit));
-        const targetCssHeight = Math.floor(targetCssWidth * ratio);
-
-        // Centrado perfecto
-        bookEl.style.display = 'flex';
-        bookEl.style.alignItems = 'center';
-        bookEl.style.justifyContent = 'center';
-
-        const flip = new St.PageFlip(bookEl, {
-          width:  targetCssWidth,
-          height: targetCssHeight,
-          size: "fixed",
-          minWidth:  280,
-          minHeight: 280,
-          maxWidth:  targetCssWidth,
-          maxHeight: targetCssHeight,
-          usePortrait: true,
-          showCover: false,
-          mobileScrollSupport: false,
-
-          // Animación marcada en ambos sentidos
-          flippingTime: 900,
-          drawShadow: true,
-          maxShadowOpacity: 1,
-          showPageCorners: true
-        });
-
-        flip.loadFromImages(PAGES);
-
-        // Taps en bordes
-        const L = document.getElementById('tap-left');
-        const R = document.getElementById('tap-right');
-        if (L) L.addEventListener('click', ()=>flip.flipPrev());
-        if (R) R.addEventListener('click', ()=>flip.flipNext());
-
-        // Swipe horizontal (pointer + touch)
-        (function swipeSupport(el){
-          const target = el || bookEl;
-          const THRESHOLD = Math.max(30, Math.round(window.innerWidth*0.06));
-          const ANGLE_LOCK = 1.2;
-          let sx=0, sy=0, tracking=false;
-
-          target.addEventListener('pointerdown', e=>{
-            if(e.pointerType==='mouse' && e.buttons!==1) return;
-            tracking=true; sx=e.clientX; sy=e.clientY;
-          }, {passive:true});
-
-          target.addEventListener('pointerup', e=>{
-            if(!tracking) return; tracking=false;
-            const dx=e.clientX - sx, dy=e.clientY - sy;
-            if(Math.abs(dx)>THRESHOLD && Math.abs(dx)>Math.abs(dy)*ANGLE_LOCK){
-              dx<0 ? flip.flipNext() : flip.flipPrev();
-            }
-          }, {passive:true});
-
-          // iOS antiguos
-          let tsx=0, tsy=0, touching=false;
-          target.addEventListener('touchstart', e=>{
-            const t=e.touches[0]; touching=true; tsx=t.clientX; tsy=t.clientY;
-          }, {passive:true});
-          target.addEventListener('touchend', e=>{
-            if(!touching) return; touching=false;
-            const t=e.changedTouches[0];
-            const dx=t.clientX - tsx, dy=t.clientY - tsy;
-            if(Math.abs(dx)>THRESHOLD && Math.abs(dx)>Math.abs(dy)*ANGLE_LOCK){
-              dx<0 ? flip.flipNext() : flip.flipPrev();
-            }
-          }, {passive:true});
-        })(bookEl);
-
-        // Teclado en PC
-        window.addEventListener('keydown', e=>{
-          if(e.key==='ArrowLeft')  flip.flipPrev();
-          if(e.key==='ArrowRight') flip.flipNext();
-        });
-
-        // Reinit al cambiar tamaño/orientación
-        let timer;
-        const reinit = () => {
-          clearTimeout(timer);
-          timer = setTimeout(() => {
-            try { flip.destroy(); } catch(_){}
-            initFlip();
-          }, 120);
-        };
-        window.addEventListener('resize', reinit);
-        window.addEventListener('orientationchange', reinit);
-      }
-
-      probe.onload = initFlip;
-      probe.onerror = () => { throw new Error('No se pudo leer la primera imagen'); };
-      probe.src = PAGES[0];
-
-    }catch(e){
-      console.warn(e);
-      msg('Modo simple (sin efectos)');
-      document.getElementById('book').style.display='none';
-      const fb=document.getElementById('fallback'); if(fb){ fb.style.display='block'; }
+      document.getElementById('tap-left').addEventListener('click', ()=>flip.flipPrev());
+      document.getElementById('tap-right').addEventListener('click', ()=>flip.flipNext());
+    } catch(e) {
+      console.warn('Fallback activado:', e);
+      document.getElementById('book').style.display = 'none';
+      const fb = document.getElementById('fallback'); fb.style.display = 'block';
     }
-  })();
   </script>
-
 </body>
 </html>
