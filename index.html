@@ -110,8 +110,8 @@
   <div id="fx-top"></div>
   <div id="fx-bottom"></div>
 
-  <!-- Música: autoplay (silencio inicial), bucle y persistencia -->
-  <audio id="bgm" src="musica.mp3" loop muted playsinline preload="auto"></audio>
+  <!-- Música: inicia silenciada, se activa en primer gesto; sin persistencia -->
+  <audio id="bgm" src="musica.mp3" loop muted playsinline preload="metadata"></audio>
 
   <!-- Flipbook -->
   <div id="book" aria-label="Libro"></div>
@@ -133,65 +133,75 @@
   <!-- Librería -->
   <script src="libs/page-flip.browser.min.js"></script>
 
-  <!-- Control de música (autoplay con persistencia y reanudación) -->
+  <!-- Control de música SIN memoria de posición; play correcto en primer gesto -->
   <script>
     (function () {
       const audio = document.getElementById('bgm');
-      const POS_KEY = 'bgm_pos_v1';
-      const UNLOCK_KEY = 'bgm_unlocked_v1';
 
-      // Intenta precargar y comenzar en silencio (permitido por la mayoría de navegadores)
-      const saved = parseFloat(localStorage.getItem(POS_KEY) || '0');
-      if (!isNaN(saved)) {
-        try { audio.currentTime = saved; } catch {}
+      // Nunca recordamos posición: siempre empieza en 0
+      function startFromZero() {
+        try { audio.currentTime = 0; } catch (_) {}
       }
-      // Inicia en silencio sin interacción
-      audio.play().catch(()=>{ /* no pasa nada: algunos navegadores lo bloquearán hasta gesto */ });
 
-      // Al primer gesto del usuario, activamos sonido y nos aseguramos de reproducir
-      const unlock = () => {
+      // A algunos navegadores no les gusta que llamemos play() antes del gesto:
+      // Solo “preparamos” el elemento (no esperamos la promesa).
+      window.addEventListener('load', () => {
+        audio.pause();
+        startFromZero();
+        // Queda en silencio y listo para el gesto
+      });
+
+      // Gesto del usuario: desmutear, poner en 0 y reproducir
+      function unlockAndPlay() {
         audio.muted = false;
-        audio.play().catch(()=>{});   // en iOS/Android ya habrá gesto, así que debería reproducir
-        localStorage.setItem(UNLOCK_KEY, '1');
-        window.removeEventListener('pointerdown', unlock);
-        window.removeEventListener('touchstart', unlock);
-        window.removeEventListener('keydown', unlock);
-      };
-      window.addEventListener('pointerdown', unlock, { once:true });
-      window.addEventListener('touchstart', unlock, { once:true, passive:true });
-      window.addEventListener('keydown', unlock, { once:true });
+        startFromZero();
+        audio.play().catch(() => {/* si falla, el siguiente gesto lo retomará */});
+        // Quitamos listeners después de la primera activación
+        ['pointerdown','touchstart','click','keydown','wheel'].forEach(ev => {
+          document.removeEventListener(ev, unlockAndPlay, { passive: true });
+          window.removeEventListener(ev, unlockAndPlay, { passive: true });
+          const book = document.getElementById('book');
+          if (book) book.removeEventListener(ev, unlockAndPlay, { passive: true });
+        });
+      }
 
-      // Guarda posición cada ~2s
-      let lastSave = 0;
-      audio.addEventListener('timeupdate', () => {
-        const now = Date.now();
-        if (now - lastSave > 2000) {
-          try { localStorage.setItem(POS_KEY, String(audio.currentTime)); } catch {}
-          lastSave = now;
-        }
+      // Registramos múltiples eventos y en varios targets (document, window, book)
+      ['pointerdown','touchstart','click','keydown','wheel'].forEach(ev => {
+        document.addEventListener(ev, unlockAndPlay, { passive: true, once: false });
+        window.addEventListener(ev,   unlockAndPlay, { passive: true, once: false });
+        const onReady = () => {
+          const book = document.getElementById('book');
+          if (book) book.addEventListener(ev, unlockAndPlay, { passive: true, once: false });
+        };
+        if (document.readyState === 'complete' || document.readyState === 'interactive') onReady();
+        else document.addEventListener('DOMContentLoaded', onReady, { once:true });
       });
 
-      // Reanuda al volver a la pestaña/app
+      // Asegurar bucle desde 0 (por si algún navegador no respeta loop exacto)
+      audio.addEventListener('ended', () => {
+        startFromZero();
+        audio.play().catch(()=>{});
+      });
+
+      // Al volver a la pestaña/app, si estaba corriendo, reintenta desde 0
       document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) {
-          const p = parseFloat(localStorage.getItem(POS_KEY) || '0');
-          if (!isNaN(p)) { try { audio.currentTime = p; } catch {} }
-          // Si ya hubo gesto en esta sesión, aseguramos reproducción
-          if (localStorage.getItem(UNLOCK_KEY) === '1') {
-            audio.muted = false;
-            audio.play().catch(()=>{});
-          }
+        if (!document.hidden && audio.muted === false) {
+          startFromZero();
+          audio.play().catch(()=>{});
         }
       });
 
-      // iOS webview/Android: al cerrar, guarda
-      window.addEventListener('pagehide', () => {
-        try { localStorage.setItem(POS_KEY, String(audio.currentTime)); } catch {}
+      // En iOS a veces “pageshow bf-cache” deja el audio en estado raro: forzamos desde 0
+      window.addEventListener('pageshow', (e) => {
+        if (e.persisted) {
+          startFromZero();
+          if (audio.muted === false) audio.play().catch(()=>{});
+        }
       });
     })();
   </script>
 
-  <!-- Flipbook (tal cual tuviste) -->
+  <!-- Flipbook -->
   <script>
     const PAGES = ['page1.png','page2.png','page3.png','page4.png'];
     const FLIP_MS = 700;
@@ -199,10 +209,19 @@
     try {
       const bookEl = document.getElementById('book');
       const flip = new St.PageFlip(bookEl, {
-        width: 900, height: 1280, size: 'stretch', autoSize: true,
-        minWidth: 320, minHeight: 320, maxWidth: 3000, maxHeight: 3000,
-        usePortrait: true, showCover: false, mobileScrollSupport: false,
-        flippingTime: FLIP_MS, drawShadow: true
+        width: 900,
+        height: 1280,
+        size: 'stretch',
+        autoSize: true,
+        minWidth: 320,
+        minHeight: 320,
+        maxWidth: 3000,
+        maxHeight: 3000,
+        usePortrait: true,
+        showCover: false,
+        mobileScrollSupport: false,
+        flippingTime: FLIP_MS,
+        drawShadow: true
       });
       flip.loadFromImages(PAGES);
 
@@ -211,7 +230,8 @@
     } catch(e) {
       console.warn('Fallback activado:', e);
       document.getElementById('book').style.display = 'none';
-      const fb = document.getElementById('fallback'); fb.style.display = 'block';
+      const fb = document.getElementById('fallback');
+      fb.style.display = 'block';
     }
   </script>
 </body>
